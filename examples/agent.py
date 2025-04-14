@@ -29,7 +29,7 @@ async def kickStartBrowser(
     """
     params_str = await llm.apredict(parse_prompt)
     try:
-        params = eval(params_str)  # Safely parse the dictionary; in production, use json.loads
+        params = eval(params_str)
         interval = params.get('interval')
         max_time = params.get('max_time')
         update_frequency = params.get('update_frequency')
