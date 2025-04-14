@@ -1,11 +1,58 @@
-from typing import Optional, Callable, Awaitable
+from typing import Optional, Dict, Callable, Awaitable
+from typing import Optional
 from browser_use import Agent, Browser, BrowserConfig, Controller, ActionResult
 from langchain_openai import ChatOpenAI
 import asyncio
 import logging
-from datetime import datetime
-
+from typing import Optional, Callable, Awaitable
+from browser_use import Controller, ActionResult
 logging.getLogger('browser_use').setLevel(logging.DEBUG)
+
+
+
+custom_system_prompt = """
+You are an advanced autonomous browser agent with self-determining monitoring capabilities. Your operational protocol:
+
+After extracting content or completing significant actions, always invoke the 'Send update' action with a relevant message describing the action taken or data extracted.
+
+Always consistently send an update back by calling the 'send update' action with a message or clean data extracted structure it properly.
+
+Ensure that updates are sent consistently to keep the user informed about the progress.
+
+1. Parameter Determination:
+- Analyze task urgency and type to set initial check interval:
+- Set maximum duration based on task nature:
+
+2. Initialization Sequence:
+- Send immediate task confirmation
+- Send constant updates at intervals when new data or information relevant to the task is available
+- Explain monitoring rationale
+
+3. Adaptive Adjustment:
+- Modify intervals based on:
+  - Observed pattern changes
+  - Time of day
+  - Historical response times
+- Communicate parameter changes via:
+  [ADJUSTED_INTERVAL: New minutes]
+
+4. Update Protocol:
+- Include time since last update
+- Maintain session state between checks
+- Handle authentication persistence
+
+Example initialization:
+\"\"\"
+TASK_INITIATED: Job status monitoring
+[INTERVAL: 45 minutes]
+[DURATION: 72 hours]
+Rationale: Standard office hours check pattern
+Next update at {next_check_time}
+\"\"\"
+"""
+
+
+# Remove the global controller instance
 
 async def kickStartBrowser(
     task: str,
@@ -18,58 +65,16 @@ async def kickStartBrowser(
     llm = ChatOpenAI(model=model, temperature=0.0)
     print("llm initialized ================")
     
-    # Parse task parameters using LLM
-    parse_prompt = f"""
-    Extract the following parameters from the task description as integers in seconds. If not specified, return 'None':
-    - Interval: How often to check (e.g., 'every 30 minutes' -> 1800).
-    - Max time: Maximum monitoring duration (e.g., 'for up to 3 days' -> 259200).
-    - Update frequency: How often to send periodic updates (e.g., 'send updates every hour' -> 3600).
-    Respond in this format: {{'interval': value, 'max_time': value, 'update_frequency': value}}
-    Task: {task}
-    """
-    params_str = await llm.apredict(parse_prompt)
-    try:
-        params = eval(params_str)
-        interval = params.get('interval')
-        max_time = params.get('max_time')
-        update_frequency = params.get('update_frequency')
-    except Exception:
-        interval, max_time, update_frequency = None, None, None
-
-    # Create controller
+    # Create a new controller instance per agent
     controller = Controller()
     
-    # Register send_update action
+    # Register the send_update action with access to update_callback
     @controller.action('Send update')
     async def send_update(message: str):
-        print(f"Sending update: {message}")
+        print("controller triggered this....")
         if update_callback:
             await update_callback(message)
-        return ActionResult(extracted_content=f"Update sent: {message}")
-    
-    # Register wait action
-    @controller.action('Wait')
-    async def wait(duration: int):
-        await asyncio.sleep(duration)
-        return ActionResult(extracted_content=f"Waited for {duration} seconds")
-
-    # Enhanced system prompt
-    custom_system_prompt = f"""
-    You are an AI agent designed to automate browser tasks and run in the background for prolonged monitoring and interval-based tasks.
-    Your goal is to accomplish the task efficiently.
-
-    **Rules:**
-    - After extracting content or completing significant actions, invoke 'Send update' with a relevant message.
-    - For monitoring tasks:
-      - Check the status at intervals as specified (e.g., 'Wait 1800' for 30 minutes).
-      - Send periodic updates using the 'send update' as requested or every few checks if not specified.
-      - Stop when the condition is met (e.g., status changes) or instructed.
-    - Send an initial 'Task started' update when beginning.
-    - Use the current time (provided) to decide when to send periodic updates.
-    - Structure updates clearly and consistently.
-
-    Current time will be provided before each decision.
-    """
+        return ActionResult(extracted_content="Update sent")
     
     agent = Agent(
         task=task,
@@ -77,19 +82,12 @@ async def kickStartBrowser(
         use_vision=False,
         browser=browser,
         controller=controller,
-        message_context=custom_system_prompt
+        message_context=custom_system_prompt 
     )
     
     try:
         print("preparing to run agent ================")
-        if max_time is not None:
-            result = await asyncio.wait_for(agent.run(), timeout=max_time)
-        else:
-            result = await agent.run()
-    except asyncio.TimeoutError:
-        if update_callback:
-            await update_callback("Monitoring timed out.")
-        result = "Monitoring timed out."
+        result = await agent.run()
     finally:
         await browser.close()
     
