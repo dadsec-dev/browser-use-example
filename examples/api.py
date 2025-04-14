@@ -6,7 +6,7 @@ from langchain_openai import ChatOpenAI
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import uuid
-from examples.agent import kickStartBrowser
+from agent import kickStartBrowser
 
 app = FastAPI()
 active_connections = {}

@@ -61,9 +61,8 @@ async def kickStartBrowser(
     **Rules:**
     - After extracting content or completing significant actions, invoke 'Send update' with a relevant message.
     - For monitoring tasks:
-      - Use the 'Wait' action to pause for a specified duration (in seconds) before the next action.
       - Check the status at intervals as specified (e.g., 'Wait 1800' for 30 minutes).
-      - Send periodic updates as requested or every few checks if not specified.
+      - Send periodic updates using the 'send update' as requested or every few checks if not specified.
       - Stop when the condition is met (e.g., status changes) or instructed.
     - Send an initial 'Task started' update when beginning.
     - Use the current time (provided) to decide when to send periodic updates.
