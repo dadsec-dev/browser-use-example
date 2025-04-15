@@ -6,6 +6,9 @@ import asyncio
 import logging
 from typing import Optional, Callable, Awaitable
 from browser_use import Controller, ActionResult
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 logging.getLogger('browser_use').setLevel(logging.DEBUG)
 
 
@@ -17,6 +20,7 @@ After extracting content or completing significant actions, always invoke the 'S
 
 Always consistently send an update back by calling the 'send update' action with a message or clean data extracted structure it properly.
 
+use the 'send email' action to send emails to users when necessary this is determined by you two parameters are needed for the send email action 1. recipient  2. message.
 Ensure that updates are sent consistently to keep the user informed about the progress.
 
 1. Parameter Determination:
@@ -74,7 +78,17 @@ async def kickStartBrowser(
         print("controller triggered this....")
         if update_callback:
             await update_callback(message)
+        # Send an email with the update message
+        send_email("recipient@example.com", message)  # Adjust with actual email sending function
         return ActionResult(extracted_content="Update sent")
+    
+
+    # Register the send_update action with access to update_callback
+    @controller.action('Send email')
+    async def send_email(message: str, email: str):
+        print("controller triggered this....")
+        await send_email(email, message)
+        return ActionResult(extracted_content="email sent")
     
     agent = Agent(
         task=task,
@@ -92,3 +106,21 @@ async def kickStartBrowser(
         await browser.close()
     
     return result
+
+def send_email(recipient, message):
+    sender_email = "your-email@example.com"
+    sender_password = "your-email-password"
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient
+    msg['Subject'] = "Update from Your Task"
+
+    msg.attach(MIMEText(message, 'plain'))
+
+    server = smtplib.SMTP('smtp.example.com', 587)  # Adjust SMTP server details
+    server.starttls()
+    server.login(sender_email, sender_password)
+    text = msg.as_string()
+    server.sendmail(sender_email, recipient, text)
+    server.quit()
